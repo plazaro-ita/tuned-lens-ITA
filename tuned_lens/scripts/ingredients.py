@@ -19,7 +19,8 @@ from torch.distributed.fsdp import (
 from torch.distributed.fsdp.wrap import transformer_auto_wrap_policy
 from torch.distributed.optim import ZeroRedundancyOptimizer
 from torch.nn.parallel import DistributedDataParallel as DDP
-from torchdata import dataloader2, datapipes
+from torch.utils.data import DataLoader, default_collate
+from torch.utils.data.distributed import DistributedSampler
 from transformers import (
     AutoModelForCausalLM,
     AutoTokenizer,
@@ -371,24 +372,24 @@ class Distributed:
         else:
             return lens.to(self.device)
 
-    def dataloader(
-        self,
-        dataset: Dataset,
-    ) -> dataloader2.DataLoader2:
-        """Shard the dataset based on local rank."""
-        dp = datapipes.iter.IterableWrapper(dataset)
+    def dataloader(self, dataset: Dataset) -> DataLoader:
+        # If using distributed training, use DistributedSampler to split the dataset.
         if self.world_size > 1:
-            rs = dataloader2.DistributedReadingService()
+            sampler = DistributedSampler(dataset)
+            # When using a sampler, you generally do not shuffle via DataLoader.
+            shuffle = False
         else:
-            rs = None
+            sampler = None
+            shuffle = self.dataloader_shuffle
 
-        if self.dataloader_shuffle:
-            dp = dp.shuffle()
-
-        dp = dp.sharding_filter()
-        dp = dp.batch(self.per_gpu_batch_size)
-        dp = dp.collate()
-        return dataloader2.DataLoader2(dp, reading_service=rs)
+        loader = DataLoader(
+            dataset,
+            batch_size=self.per_gpu_batch_size,
+            shuffle=shuffle,
+            sampler=sampler,
+            collate_fn=default_collate  # or your custom collate function if needed
+        )
+        return loader
 
     def init(self):
         """Initialize distributed process group if started with elastic launch."""

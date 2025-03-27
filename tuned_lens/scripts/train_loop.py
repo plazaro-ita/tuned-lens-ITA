@@ -14,7 +14,7 @@ from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
 from torch.distributed.optim import ZeroRedundancyOptimizer
 from torch.optim import Optimizer
 from torch.optim.lr_scheduler import LambdaLR
-from torchdata.dataloader2 import DataLoader2
+from torch.utils.data import DataLoader
 from tqdm.auto import trange
 from transformers import PreTrainedModel
 
@@ -36,7 +36,7 @@ class LossChoice(enum.Enum):
 class State:
     """All of the stateful information in the training loop."""
 
-    dataloader: DataLoader2
+    dataloader: DataLoader
     lens: TunedLens
     opt: Optimizer
     scheduler: LambdaLR
@@ -334,7 +334,7 @@ class Train:
 
         logger.debug(f"Creating data loader and setting seed to {self.seed} ...")
         dl = self.dist.dataloader(data)
-        dl.seed(self.seed)
+        th.manual_seed(self.seed)
         logger.debug("Creating optimizer and scheduler ...")
         params = [p for p in lens.parameters() if p.requires_grad]
         opt = self.opt.create_optim(params)
