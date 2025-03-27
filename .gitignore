@@ -138,3 +138,6 @@ dmypy.json
 .pyre/
 .idea/workspace.xml
 .vscode/launch.json
+
+# Trained lenses
+my_lenses/*
